@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>迷你健康追蹤工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', 'Microsoft JhengHei', sans-serif; }
+        .chart-container { position: relative; height: 300px; width: 100%; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen pb-12">
+
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-slate-800 flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                個人健康追蹤
+            </h1>
+            <p class="text-slate-500 mt-2">追蹤體重與 BMI 變化，維持理想體態</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Left Column: Input Form -->
+            <div class="md:col-span-1">
+                <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
+                    <h2 class="text-lg font-semibold text-slate-700 mb-4">輸入今日資料</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1">身高 (cm)</label>
+                            <input type="number" id="heightInput" placeholder="例如: 175" step="0.1"
+                                class="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1">體重 (kg)</label>
+                            <input type="number" id="weightInput" placeholder="例如: 70" step="0.1"
+                                class="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition">
+                        </div>
+                        <button onclick="saveRecord()" 
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 shadow-md flex items-center justify-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                            紀錄今日數據
+                        </button>
+                    </div>
+
+                    <!-- BMI Current Result -->
+                    <div id="currentResult" class="mt-6 p-4 rounded-xl hidden">
+                        <div class="text-sm font-medium mb-1 opacity-80">本次計算結果</div>
+                        <div class="text-2xl font-bold" id="resultBmiValue">--</div>
+                        <div class="text-sm font-semibold mt-1" id="resultStatusTextText">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Chart -->
+            <div class="md:col-span-2">
+                <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 h-full">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-semibold text-slate-700">趨勢圖表 (最近 30 筆)</h2>
+                        <div id="chartLegend" class="flex gap-4 text-xs">
+                            <span class="flex items-center gap-1"><span class="w-3 h-3 bg-blue-500 rounded-full"></span> 體重</span>
+                            <span class="flex items-center gap-1"><span class="w-3 h-3 bg-emerald-500 rounded-full"></span> BMI</span>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="healthChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Table Section -->
+        <div class="mt-8">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                    <h2 class="text-lg font-semibold text-slate-700">歷史紀錄</h2>
+                    <button onclick="exportCSV()" 
+                        class="text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg transition flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        匯出 CSV
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider">
+                                <th class="px-6 py-4 font-semibold">日期時間</th>
+                                <th class="px-6 py-4 font-semibold">身高 (cm)</th>
+                                <th class="px-6 py-4 font-semibold">體重 (kg)</th>
+                                <th class="px-6 py-4 font-semibold">BMI</th>
+                                <th class="px-6 py-4 font-semibold">健康狀態</th>
+                                <th class="px-6 py-4 font-semibold text-center">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyBody" class="divide-y divide-slate-100 text-slate-600">
+                            <!-- JS will populate here -->
+                        </tbody>
+                    </table>
+                    <div id="emptyState" class="py-12 text-center text-slate-400 hidden">
+                        尚未有任何紀錄，請在上方輸入資料開始追蹤。
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal/Toast for feedback -->
+    <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300">
+        已成功儲存！
+    </div>
+
+    <script>
+        let records = JSON.parse(localStorage.getItem('health_records')) || [];
+        let healthChart = null;
+
+        // 初始化
+        window.onload = () => {
+            // 自動帶入上一次的身高
+            if (records.length > 0) {
+                document.getElementById('heightInput').value = records[0].height;
+            }
+            updateUI();
+        };
+
+        function calculateBMI(h, w) {
+            const hMeter = h / 100;
+            return (w / (hMeter * hMeter)).toFixed(1);
+        }
+
+        function getBMIStatus(bmi) {
+            // 台灣衛福部標準
+            if (bmi < 18.5) return { text: "體重過輕", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100" };
+            if (bmi < 24) return { text: "正常範圍", color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100" };
+            if (bmi < 27) return { text: "過重", color: "text-orange-600", bg: "bg-orange-50", border: "border-orange-100" };
+            return { text: "肥胖", color: "text-red-600", bg: "bg-red-50", border: "border-red-100" };
+        }
+
+        function saveRecord() {
+            const h = parseFloat(document.getElementById('heightInput').value);
+            const w = parseFloat(document.getElementById('weightInput').value);
+
+            if (!h || !w) {
+                showToast("請輸入有效的數字！");
+                return;
+            }
+
+            const bmi = calculateBMI(h, w);
+            const status = getBMIStatus(parseFloat(bmi));
+            const now = new Date();
+            const record = {
+                id: Date.now(),
+                timestamp: now.toLocaleString('zh-TW', { hour12: false }),
+                dateStr: (now.getMonth() + 1) + '/' + now.getDate(),
+                height: h,
+                weight: w,
+                bmi: parseFloat(bmi)
+            };
+
+            // 新增至開頭
+            records.unshift(record);
+            
+            // 限制最多儲存 100 筆，但 UI 只顯示 30 筆
+            if (records.length > 100) records.pop();
+
+            localStorage.setItem('health_records', JSON.stringify(records));
+            
+            showCurrentResult(bmi, status);
+            updateUI();
+            showToast("紀錄已儲存！");
+        }
+
+        function showCurrentResult(bmi, status) {
+            const container = document.getElementById('currentResult');
+            const bmiText = document.getElementById('resultBmiValue');
+            const statusText = document.getElementById('resultStatusTextText');
+
+            container.className = `mt-6 p-4 rounded-xl border ${status.bg} ${status.color} ${status.border}`;
+            container.classList.remove('hidden');
+            bmiText.innerText = bmi;
+            statusText.innerText = status.text;
+        }
+
+        function deleteRecord(id) {
+            records = records.filter(r => r.id !== id);
+            localStorage.setItem('health_records', JSON.stringify(records));
+            updateUI();
+        }
+
+        function updateUI() {
+            renderTable();
+            renderChart();
+        }
+
+        function renderTable() {
+            const historyBody = document.getElementById('historyBody');
+            const emptyState = document.getElementById('emptyState');
+            
+            // 顯示最近 30 筆
+            const displayList = records.slice(0, 30);
+
+            if (displayList.length === 0) {
+                historyBody.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            historyBody.innerHTML = displayList.map(record => {
+                const status = getBMIStatus(record.bmi);
+                return `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="px-6 py-4 text-sm font-medium text-slate-900">${record.timestamp}</td>
+                        <td class="px-6 py-4 text-sm">${record.height}</td>
+                        <td class="px-6 py-4 text-sm font-semibold text-slate-800">${record.weight}</td>
+                        <td class="px-6 py-4">
+                            <span class="text-sm font-bold text-slate-800">${record.bmi}</span>
+                        </td>
+                        <td class="px-6 py-4 text-xs font-semibold">
+                            <span class="px-2 py-1 rounded-full ${status.bg} ${status.color}">${status.text}</span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <button onclick="deleteRecord(${record.id})" class="text-slate-300 hover:text-red-500 transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderChart() {
+            const ctx = document.getElementById('healthChart').getContext('2d');
+            
+            // 獲取最近 30 筆，並反轉順序顯示（從舊到新）
+            const chartData = [...records].slice(0, 30).reverse();
+            
+            const labels = chartData.map(r => r.dateStr);
+            const weights = chartData.map(r => r.weight);
+            const bmis = chartData.map(r => r.bmi);
+
+            if (healthChart) {
+                healthChart.destroy();
+            }
+
+            healthChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '體重 (kg)',
+                            data: weights,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'BMI',
+                            data: bmis,
+                            borderColor: '#10b981',
+                            borderDash: [5, 5],
+                            pointStyle: 'circle',
+                            radius: 4,
+                            tension: 0.3,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            grid: { color: '#f1f5f9' },
+                            title: { display: true, text: '體重 (kg)', font: { size: 10 } }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            title: { display: true, text: 'BMI', font: { size: 10 } }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { maxRotation: 0, font: { size: 10 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function exportCSV() {
+            if (records.length === 0) {
+                showToast("目前沒有資料可匯出");
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // 加入 BOM 確保 Excel 顯示中文
+            csvContent += "日期時間,身高(cm),體重(kg),BMI,健康狀態\n";
+
+            records.forEach(r => {
+                const status = getBMIStatus(r.bmi).text;
+                csvContent += `${r.timestamp},${r.height},${r.weight},${r.bmi},${status}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `健康紀錄_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            toast.classList.add('opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
